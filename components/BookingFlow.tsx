@@ -7,7 +7,9 @@ import { ACK_ITEMS, AGREEMENT_VERSION, MISSING_TERMS, agreementHash } from "@/li
 import RulesList from "./RulesList";
 import DraftBanner from "./DraftBanner";
 import { computeOrder, money } from "@/lib/pricing";
-import { addOrder, newId } from "@/lib/store";
+import { createOrder } from "@/lib/store";
+import { useAuth } from "./useAuth";
+import AuthForm from "./AuthForm";
 import { localISODate } from "@/lib/dates";
 
 const STEPS = ["ZIP", "Schedule", "Preferences", "Bag size", "Rules", "Payment"] as const;
@@ -26,6 +28,8 @@ export default function BookingFlow() {
   const [step, setStep] = useState(sp.get("zip") && SERVICE_ZIPS[sp.get("zip")!] ? 1 : 0);
   const [errors, setErrors] = useState<Errors>({});
   const [done, setDone] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const { user, ready: authReady } = useAuth();
 
   const [f, setF] = useState({
     zip: sp.get("zip") || "", name: "", phone: "", email: "", address: "",
@@ -89,29 +93,40 @@ export default function BookingFlow() {
     }
     return e;
   }
+  // Prefill the contact email from the signed-in account.
+  useEffect(() => {
+    if (user?.email) setF((p) => (p.email ? p : { ...p, email: user.email! }));
+  }, [user]);
+
   function next() {
     const e = validate(step); setErrors(e);
     if (Object.keys(e).length) return;
     if (step === STEPS.length - 1) return submit();
+    // Keep the ZIP in the URL so the email-confirmation link brings the customer back to the right step.
+    if (step === 0) window.history.replaceState(null, "", `/book?zip=${f.zip}`);
     setStep(step + 1); window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function back() {
     setErrors({});
     setStep((s) => Math.max(0, s - 1)); window.scrollTo({ top: 0, behavior: "smooth" });
   }
-  function submit() {
-    if (done) return;
-    const id = newId();
+  async function submit() {
+    if (done || submitting) return;
     const w = WINDOWS.find((x) => x.id === f.window)!;
-    addOrder({
-      id, createdAt: new Date().toISOString().slice(0, 10), name: f.name, phone: f.phone, email: f.email,
+    setSubmitting(true);
+    try {
+    const id = await createOrder({
+      name: f.name, phone: f.phone, email: f.email,
       address: f.address, zip: f.zip, date: f.date, window: `${w.label} ${w.time}`, plan: f.plan,
       prefs: { detergent: f.detergent, softener: f.softener, temp: f.temp, hang: String(f.hang), bleach: String(f.bleach), stain: String(f.stain), dropoff: f.dropoff, gate: f.gate, contact: f.contact },
-      notes: f.notes, estLbs: f.lbs, finalLbs: null,
-      bulky: Object.fromEntries(Object.entries(f.bulky).filter(([, n]) => n > 0)), hangers: f.hang, rush: f.rush, authHold: hold, total: null, status: "Scheduled", driver: null,
+      notes: f.notes, estLbs: f.lbs,
+      bulky: Object.fromEntries(Object.entries(f.bulky).filter(([, n]) => n > 0)), hangers: f.hang, rush: f.rush, authHold: hold,
       agreement: { version: AGREEMENT_VERSION, hash: agreementHash(), acceptedAt: new Date().toISOString(), confirmed: ACK_ITEMS.filter((a) => f.ack[a.id]).map((a) => a.id), draft: MISSING_TERMS.length > 0 },
     });
     setDone(id);
+    } catch (e) {
+      setErrors({ submit: `We couldn't place your order: ${e instanceof Error ? e.message : "unknown error"}. Please try again.` });
+    } finally { setSubmitting(false); }
   }
 
   if (done) {
@@ -158,7 +173,12 @@ export default function BookingFlow() {
             </div>
           )}
 
-          {step === 1 && (
+          {step >= 1 && !user && (
+            authReady ? <AuthForm title="Sign in to book" intro="Sign in or create an account so you can track this order. Your ZIP is saved." embedded />
+              : <p>Loading…</p>
+          )}
+
+          {step === 1 && user && (
             <div className="space-y-4">
               <h2 className="text-2xl font-extrabold">When &amp; where?</h2>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -200,7 +220,7 @@ export default function BookingFlow() {
             </div>
           )}
 
-          {step === 2 && (
+          {step === 2 && user && (
             <div className="space-y-6">
               <h2 className="text-2xl font-extrabold">Your laundry, your way</h2>
               <Choice title="Detergent" value={f.detergent} onChange={(v) => set("detergent", v)} opts={PREFS.detergent.map((d) => ({ id: d.id, label: d.label, sub: d.sub }))} />
@@ -237,7 +257,7 @@ export default function BookingFlow() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 3 && user && (
             <div className="space-y-5">
               <h2 className="text-2xl font-extrabold">How much laundry?</h2>
               <p className="rounded-2xl bg-teal-soft p-3 text-sm">Your bag needs to close normally. Anything that overflows is treated as an additional bag. Comforters and oversized blankets are priced separately below and don't go in your standard bag.</p>
@@ -283,7 +303,7 @@ export default function BookingFlow() {
             </div>
           )}
 
-          {step === 4 && (
+          {step === 4 && user && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-2xl font-extrabold">Service rules</h2>
@@ -311,7 +331,7 @@ export default function BookingFlow() {
             </div>
           )}
 
-          {step === 5 && (
+          {step === 5 && user && (
             <div className="space-y-4">
               <h2 className="text-2xl font-extrabold">Payment</h2>
               <p className="rounded-2xl bg-teal-soft p-3 text-sm">We'll place a <b>{money(hold)}</b> authorization hold now. You're charged only the final weighed total after we wash.</p>
@@ -328,9 +348,14 @@ export default function BookingFlow() {
             </div>
           )}
 
+          {err("submit")}
           <div className="mt-8 flex items-center justify-between">
             <button type="button" className="btn-ghost" disabled={step === 0} onClick={back} style={{ opacity: step === 0 ? 0.4 : 1 }}>← Back</button>
-            <button type="button" className="btn-primary" onClick={next}>{step === STEPS.length - 1 ? `Book it · hold ${money(hold)}` : "Continue →"}</button>
+            {(step === 0 || user) && (
+              <button type="button" className="btn-primary" onClick={next} disabled={submitting}>
+                {step === STEPS.length - 1 ? (submitting ? "Booking…" : `Book it · hold ${money(hold)}`) : "Continue →"}
+              </button>
+            )}
           </div>
         </div>
 

@@ -15,8 +15,8 @@ npm run build && npm start     # production
 1. **Set `NEXT_PUBLIC_SITE_URL`** to your real domain (otherwise social-share previews point at localhost).
 2. **Finalize the Service Rules** (see below). A yellow DRAFT banner shows on `/rules` and in checkout until every value is filled in.
 2b. Replace placeholders: phone/email in `components/Footer.tsx`, testimonials in `components/Reviews.tsx`, ZIPs/prices in `lib/config.ts`.
-3. **Decide the data layer.** Orders currently live in each visitor's own browser (localStorage). Customers and the operator do NOT see each other's data. That is fine for a demo but means **no real orders can be taken until you do step 4**.
-4. Wire the integrations below (database, auth, Stripe, Twilio/SendGrid).
+3. **Connect Supabase** (accounts + orders database), see below.
+4. Wire the remaining integrations below (Stripe, Twilio/SendGrid).
 5. Deploy (see below). Fonts are fetched from Google at build time, so the build machine needs internet access.
 
 ## Deploy to Vercel (recommended, free tier works)
@@ -28,14 +28,38 @@ npm run build && npm start     # production
 
 `/robots.txt` and `/sitemap.xml` are generated from `NEXT_PUBLIC_SITE_URL`; `/admin` and `/account` are excluded from search engines.
 
-## What works today (demo mode)
+## Connect Supabase (accounts + orders)
+Customer logins, orders, operator access and business inquiries are stored in Supabase.
+Until the two keys are set, `/book`, `/account` and `/admin` show an "Accounts aren't connected yet" notice.
+
+1. **Create the tables.** Supabase Dashboard → **SQL Editor** → New query → paste all of [`supabase/schema.sql`](supabase/schema.sql) → **Run**. (Safe to run again.)
+2. **Copy your keys.** Dashboard → **Project Settings → API** (or the **Connect** button): copy the **Project URL** and the **anon / publishable** key. *Never* use the `service_role` / secret key in the website.
+3. **Add them to Vercel.** Project → Settings → Environment Variables:
+   - `NEXT_PUBLIC_SUPABASE_URL` = Project URL
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = anon / publishable key
+   
+   Then **Deployments → ⋯ → Redeploy** (the keys are baked in at build time).
+4. **Set the login redirect URL.** Supabase → **Authentication → URL Configuration**: set **Site URL** to your live URL (e.g. `https://laundry-day-off.vercel.app`) and add `https://laundry-day-off.vercel.app/**` under **Redirect URLs**. Otherwise confirmation emails link to localhost.
+5. **Make yourself an operator.** Create your account on the live site (`/account` → New customer), then run in the SQL Editor:
+   ```sql
+   insert into public.operators (user_id)
+   select id from auth.users where email = 'you@example.com'
+   on conflict do nothing;
+   ```
+   Now `/admin` shows every order and every business inquiry. Repeat for each staff member.
+
+**How security works:** Row Level Security in the database enforces access, not the website. Customers can only read their own orders, can't set weights/totals/status, and can only change the window/plan of their own not-yet-picked-up order. Only operators can read all orders and inquiries or update orders.
+
+**Emails:** Supabase's built-in email sender is rate-limited (a few per hour) and meant for testing. Before launch, add your own SMTP (e.g. Resend, SendGrid) under Authentication → Emails → SMTP Settings.
+
+## What works today
 - Home: hero + video, ZIP checker, How It Works, live pricing/weight estimator, service area, reviews, FAQ
 - `/book`: 6-step flow (ZIP → Schedule → Preferences → Bag size → Rules → Payment) with validation + live summary
-- `/account`: live order tracker, recurring plan controls, card on file, history
-- `/admin`: route dashboard (demo PIN `1234`): assign drivers, log weights, change status, simulated SMS log
-- `/business`: B2B / Airbnb quote form
+- `/account`: sign in, live order tracker (updates in real time), recurring plan controls, history
+- `/admin`: operator-only route dashboard: assign drivers, log weights (final total computed incl. bulky items), change status, business inquiries, simulated SMS log
+- `/business`: B2B / Airbnb quote form (saved to Supabase, visible in `/admin`)
 
-Orders persist in **localStorage** so the whole loop (book → track → operator updates) is demoable with no backend.
+Still demo: card entry (Stripe not wired yet) and SMS/email notifications.
 
 ## Edit business rules in one place
 `lib/config.ts`: prices, minimums, bulky items, windows, **service ZIPs**, statuses.
@@ -46,15 +70,16 @@ Everything below is currently mocked. Each has one place to swap.
 
 | Concern | Now | Replace with |
 |---|---|---|
-| Orders/DB | `lib/store.ts` (localStorage) | Postgres via Prisma/Supabase; keep the same function names |
-| Auth | none / demo PIN | NextAuth or Clerk; role `customer` vs `operator`; **protect `/admin` server-side** |
+| Orders/DB | ✅ Supabase (`lib/store.ts`, `supabase/schema.sql`) | done |
+| Auth | ✅ Supabase Auth; operators in `public.operators`, enforced by RLS | done |
 | Payments | fake card fields in `BookingFlow` step 5 | Stripe Elements + `PaymentIntent` with `capture_method: "manual"` (auth hold), then capture the weighed amount from `/admin` |
 | SMS / email | simulated log in `/admin` | Twilio + SendGrid, fired from an API route on each status change |
-| Business form | client-only | `POST /api/inquiries` + email to owner |
+| Business form | ✅ saved to `inquiries` table | add an email alert to the owner |
 
 ### Security notes (do before launch)
 - **Never** collect raw card numbers yourself. Use Stripe Elements so card data never touches your server (PCI).
-- The `/admin` PIN is client-side and only a demo gate. Real auth must be enforced on the server.
+- `/admin` access is enforced by Supabase Row Level Security; add staff via `public.operators`.
+- The authorization-hold amount is computed in the browser; recompute it server-side when Stripe is wired.
 - Sample testimonials in `components/Reviews.tsx` are placeholders. Use real ones.
 - Phone/email/address in the footer are placeholders.
 
@@ -71,4 +96,4 @@ Everything below is currently mocked. Each has one place to swap.
 - **Have an attorney review the rules before launch.** Whether liability limits are enforceable varies by state.
 
 ### Before real customers use it (agreement evidence)
-The acceptance record is currently in the visitor's browser. For it to protect you, save it **server-side** when the order is placed: version, SHA-256 of the text, timestamp, IP address, user-agent, and email the customer a copy. Replace the demo `agreementHash()` with a server-side SHA-256.
+The acceptance record (version, text fingerprint, timestamp, confirmed boxes) is now saved with each order in Supabase (`orders.agreement`). For stronger evidence, also capture IP address and user-agent server-side and email the customer a copy. Replace the demo `agreementHash()` with a server-side SHA-256.

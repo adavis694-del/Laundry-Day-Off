@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { submitInquiry } from "@/lib/store";
 
 const TYPES = ["Airbnb / short-term rental", "Gym / fitness studio", "Salon / spa", "Office", "Restaurant", "Other"];
 
@@ -7,9 +8,10 @@ export default function Business() {
   const [f, setF] = useState({ biz: "", type: TYPES[0], contact: "", email: "", phone: "", vol: "", msg: "" });
   const [err, setErr] = useState<Record<string, string>>({});
   const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     const x: Record<string, string> = {};
     if (!f.biz.trim()) x.biz = "Business name required.";
@@ -17,7 +19,11 @@ export default function Business() {
     if (!/^\S+@\S+\.\S+$/.test(f.email)) x.email = "Valid email required.";
     if (f.phone.replace(/\D/g, "").length < 10) x.phone = "10-digit phone required.";
     setErr(x);
-    if (!Object.keys(x).length) setSent(true); // TODO: POST to /api/inquiries
+    if (Object.keys(x).length) return;
+    setBusy(true);
+    try { await submitInquiry(f); setSent(true); }
+    catch (e) { setErr({ submit: `Couldn't send your request: ${e instanceof Error ? e.message : "unknown error"}. Please try again.` }); }
+    finally { setBusy(false); }
   }
   const fieldErr = (k: string) => err[k] ? <p role="alert" className="mt-1 text-sm font-bold text-[#B4232F]">{err[k]}</p> : null;
 
@@ -41,7 +47,8 @@ export default function Business() {
               <div className="sm:col-span-2"><label className="label" htmlFor="b5">Email</label><input id="b5" type="email" className="input" value={f.email} onChange={(e) => set("email", e.target.value)} />{fieldErr("email")}</div>
               <div className="sm:col-span-2"><label className="label" htmlFor="b6">Estimated weekly volume (lbs or # of units)</label><input id="b6" className="input" value={f.vol} onChange={(e) => set("vol", e.target.value)} /></div>
               <div className="sm:col-span-2"><label className="label" htmlFor="b7">Anything else?</label><textarea id="b7" rows={3} className="input" value={f.msg} onChange={(e) => set("msg", e.target.value)} /></div>
-              <button className="btn-primary sm:col-span-2">Request a quote</button>
+              <div className="sm:col-span-2">{fieldErr("submit")}</div>
+              <button className="btn-primary sm:col-span-2" disabled={busy}>{busy ? "Sending…" : "Request a quote"}</button>
             </form>
           )}
         </div>

@@ -15,9 +15,6 @@ const windowLabel = (id: string) => { const w = WINDOWS.find((x) => x.id === id)
 export default function Account() {
   const { user, ready: authReady } = useAuth();
   const { orders, ready, error, reload } = useOrders(!!user);
-  const [card, setCard] = useState("•••• 4242");
-  const [editing, setEditing] = useState(false);
-  const [newCard, setNewCard] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionErr, setActionErr] = useState("");
   const active = orders.filter((o) => o.status !== "Delivered");
@@ -84,16 +81,9 @@ export default function Account() {
           ) : <p className="mt-2 text-ink/70">No upcoming recurring pickup. Pick weekly or bi-weekly when booking to save per lb.</p>}
         </section>
         <section className="card">
-          <h2 className="text-xl font-extrabold">Card on file</h2>
-          <p className="mt-2 font-bold">{card}</p>
-          <p className="mt-1 text-xs text-ink/60">🧪 Demo: card storage arrives with Stripe.</p>
-          {editing ? (
-            <div className="mt-3 flex gap-2">
-              <label htmlFor="nc" className="sr-only">New card number</label>
-              <input id="nc" className="input" placeholder="New card number" inputMode="numeric" value={newCard} onChange={(e) => setNewCard(e.target.value.replace(/[^\d ]/g, ""))} />
-              <button className="btn-teal !px-4" onClick={() => { const d = newCard.replace(/\s/g, ""); if (d.length >= 15) { setCard("•••• " + d.slice(-4)); setEditing(false); setNewCard(""); } }}>Save</button>
-            </div>
-          ) : <button className="btn-ghost mt-3 !py-2 text-sm" onClick={() => setEditing(true)}>Update card</button>}
+          <h2 className="text-xl font-extrabold">Payment</h2>
+          <p className="mt-2 text-ink/80">No card saved yet.</p>
+          <p className="mt-1 text-sm text-ink/60">Secure card payments are coming soon. Until then, we&apos;ll confirm payment with you directly before your pickup.</p>
         </section>
       </div>
 

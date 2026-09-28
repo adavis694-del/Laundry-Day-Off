@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  body { @apply bg-cream text-ink font-body antialiased; }
+  h1, h2, h3 { @apply font-display; }
+  :focus-visible { outline: 3px solid #E48A96; outline-offset: 2px; }
+}
+
+@layer components {
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-full border-2 border-ink px-6 py-3 font-bold transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-none; }
+  .btn-primary { @apply btn bg-rose text-ink shadow-retro-sm hover:bg-rose-blush; }
+  .btn-teal { @apply btn bg-teal text-white shadow-retro-sm hover:bg-teal-deep; }
+  .btn-ghost { @apply btn bg-white text-ink shadow-retro-sm hover:bg-cream; }
+  .card { @apply rounded-retro border-2 border-ink bg-white p-6 shadow-retro; }
+  .badge { @apply inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-white px-3 py-1 text-xs font-bold uppercase tracking-wider; }
+  .input { @apply w-full rounded-2xl border-2 border-ink bg-white px-4 py-3 text-base placeholder:text-ink/40; }
+  .label { @apply mb-1.5 block text-sm font-bold; }
+  .sunburst { background-image: radial-gradient(circle at 20% 20%, #D5EBEE 0, transparent 40%), radial-gradient(circle at 85% 70%, #FBE3E4 0, transparent 45%); }
+}

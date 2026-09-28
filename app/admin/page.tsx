@@ -4,6 +4,7 @@ import { useOrders } from "@/components/useOrders";
 import { updateOrder } from "@/lib/store";
 import { STATUSES, Status } from "@/lib/config";
 import { computeOrder, money } from "@/lib/pricing";
+import { prettyDate } from "@/lib/dates";
 import type { Order } from "@/lib/store";
 
 const DRIVERS = ["Marcus", "Tanya", "Devon"];
@@ -59,13 +60,13 @@ export default function Admin() {
             {["Order", "Customer", "Pickup", "Weight (lb)", "Driver", "Status"].map((h) => <th key={h} className="px-3 py-1">{h}</th>)}
           </tr></thead>
           <tbody>
-            {!ready ? <tr><td className="p-3">Loading…</td></tr> : orders.map((o) => (
+            {!ready ? <tr><td className="p-3">Loading…</td></tr> : orders.length === 0 ? <tr><td colSpan={6} className="p-3 text-ink/60">No orders yet. New bookings appear here.</td></tr> : orders.map((o) => (
               <tr key={o.id} className="bg-white [&>td]:border-y-2 [&>td]:border-ink [&>td:first-child]:rounded-l-2xl [&>td:first-child]:border-l-2 [&>td:last-child]:rounded-r-2xl [&>td:last-child]:border-r-2">
                 <td className="p-3 font-extrabold">{o.id}</td>
                 <td className="p-3">{o.name}<span className="block text-xs text-ink/60">{o.address}, {o.zip}</span>
                   <span className="block text-xs text-ink/60">Detergent: {o.prefs.detergent ?? "—"} · Bleach: {o.prefs.bleach === "true" ? <b className="text-[#B4232F]">AUTHORIZED</b> : "none"}</span>
                   <span className="block text-xs text-ink/60">{o.agreement ? `Rules v${o.agreement.version} accepted ✓` : "Rules: not on file"}</span></td>
-                <td className="p-3">{o.date}<span className="block text-xs text-ink/60">{o.window}</span></td>
+                <td className="p-3">{prettyDate(o.date)}<span className="block text-xs text-ink/60">{o.window}</span></td>
                 <td className="p-3">
                   {o.finalLbs != null ? <b>{o.finalLbs} lb · {o.total != null ? money(o.total) : ""}</b> : (
                     <div className="flex gap-1">

@@ -1,5 +1,4 @@
 import { Status } from "./config";
-import { localISODate } from "./dates";
 
 // Mock persistence via localStorage. Swap each function for a real API/DB call
 // (Prisma + Postgres, Supabase, etc.) without touching the UI.
@@ -17,26 +16,17 @@ export type Order = {
 
 const KEY = "ldo_orders_v1";
 
-export function seedOrders(): Order[] {
-  const d = (n: number) => localISODate(new Date(Date.now() + n * 864e5));
-  return [
-    { id: "LDO-1042", createdAt: d(-6), name: "Demo Customer", phone: "3365550142", email: "demo@example.com", address: "412 W 4th St", zip: "27101", date: d(-5), window: "Morning 8am – 11am", plan: "weekly", prefs: { detergent: "linen", softener: "yes", temp: "cold" }, notes: "Porch drop", estLbs: 20, finalLbs: 22.4, authHold: 60, total: 38.13, status: "Delivered", driver: "Marcus" },
-    { id: "LDO-1057", createdAt: d(-1), name: "Demo Customer", phone: "3365550142", email: "demo@example.com", address: "412 W 4th St", zip: "27101", date: d(1), window: "Evening 5pm – 8pm", plan: "weekly", prefs: { detergent: "linen", softener: "yes", temp: "cold" }, notes: "Porch drop", estLbs: 20, finalLbs: null, authHold: 60, total: null, status: "Scheduled", driver: null },
-  ];
-}
-
 export function loadOrders(): Order[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      // Drop the sample orders older builds seeded into every visitor's browser.
+      if (Array.isArray(parsed)) return parsed.filter((o: Order) => o.email !== "demo@example.com");
     }
   } catch {}
-  const s = seedOrders();
-  try { localStorage.setItem(KEY, JSON.stringify(s)); } catch {}
-  return s;
+  return [];
 }
 export function saveOrders(o: Order[]) {
   try { localStorage.setItem(KEY, JSON.stringify(o)); } catch {}

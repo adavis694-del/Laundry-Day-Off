@@ -5,6 +5,7 @@ import { useOrders } from "@/components/useOrders";
 import StatusTracker from "@/components/StatusTracker";
 import { updateOrder } from "@/lib/store";
 import { money } from "@/lib/pricing";
+import { prettyDate } from "@/lib/dates";
 
 export default function Account() {
   const { orders, ready } = useOrders();
@@ -13,7 +14,8 @@ export default function Account() {
   const [newCard, setNewCard] = useState("");
   const active = orders.filter((o) => o.status !== "Delivered");
   const past = orders.filter((o) => o.status === "Delivered");
-  const rec = orders.find((o) => o.plan !== "once");
+  // Newest upcoming recurring order drives the plan (orders are stored newest first).
+  const rec = active.find((o) => o.plan !== "once") ?? orders.find((o) => o.plan !== "once");
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
@@ -27,7 +29,7 @@ export default function Account() {
         <div key={o.id} className="card mt-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-lg font-extrabold">{o.id}</p>
-            <span className="badge bg-rose-soft">{o.date} · {o.window}</span>
+            <span className="badge bg-rose-soft">{prettyDate(o.date)} · {o.window}</span>
           </div>
           <div className="mt-5"><StatusTracker status={o.status} /></div>
           <p className="mt-5 text-sm text-ink/70">Est. {o.estLbs} lbs · hold {money(o.authHold)}{o.driver ? ` · Driver: ${o.driver}` : ""}</p>
@@ -66,7 +68,7 @@ export default function Account() {
         {past.length === 0 && <p className="text-ink/70">No past orders yet.</p>}
         {past.map((o) => (
           <div key={o.id} className="card flex flex-wrap items-center justify-between gap-2 !p-4">
-            <div><p className="font-extrabold">{o.id}</p><p className="text-sm text-ink/70">{o.date} · {o.finalLbs ?? o.estLbs} lbs</p></div>
+            <div><p className="font-extrabold">{o.id}</p><p className="text-sm text-ink/70">{prettyDate(o.date)} · {o.finalLbs ?? o.estLbs} lbs</p></div>
             <p className="text-lg font-extrabold">{o.total != null ? money(o.total) : "—"}</p>
           </div>
         ))}
